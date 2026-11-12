@@ -107,6 +107,7 @@ UA = "Mozilla/5.0 (compatible; FlareFalcon-like-Audit/1.0)"
 
 
 def normalize_url(url):
+    """Normalize a user-provided URL: trim whitespace and assume https:// if no scheme."""
     url = (url or "").strip()
     if not url:
         return url
@@ -116,6 +117,7 @@ def normalize_url(url):
 
 
 def fetch(url):
+    """Fetch a URL, returning the httpx.Response or None on failure."""
     try:
         r = httpx.get(url, headers={"User-Agent": UA}, timeout=20, follow_redirects=True)
         return r
@@ -124,6 +126,7 @@ def fetch(url):
 
 
 def build_recommendations(checks):
+    """Return a list of actionable recommendations based on audit *checks*."""
     recs = []
     rtxt = checks.get("robots_txt", {})
     if not rtxt.get("exists"):
@@ -159,6 +162,7 @@ def build_recommendations(checks):
 
 
 def audit(url):
+    """Run the full AI-visibility audit for *url* and return a report dict."""
     url = normalize_url(url)
     parsed = urlparse(url)
     if not parsed.scheme or not parsed.netloc:
@@ -730,6 +734,7 @@ render_report = build_html_report
 
 
 def serve(port=8765, open_browser=True):
+    """Start the local web UI server and (optionally) open a browser."""
     httpd = HTTPServer(("127.0.0.1", port), AuditHandler)
     url = f"http://127.0.0.1:{port}/"
     print(f"AI Visibility Audit web UI: {url}")
