@@ -106,6 +106,15 @@ __version__ = "1.0.0"
 UA = "Mozilla/5.0 (compatible; FlareFalcon-like-Audit/1.0)"
 
 
+def normalize_url(url):
+    url = (url or "").strip()
+    if not url:
+        return url
+    if "://" not in url:
+        url = "https://" + url
+    return url
+
+
 def fetch(url):
     try:
         r = httpx.get(url, headers={"User-Agent": UA}, timeout=20, follow_redirects=True)
@@ -114,10 +123,43 @@ def fetch(url):
         return None
 
 
+def build_recommendations(checks):
+    recs = []
+    rtxt = checks.get("robots_txt", {})
+    if not rtxt.get("exists"):
+        recs.append("Create a robots.txt file at the site root.")
+    if rtxt.get("blocks_ai"):
+        recs.append("Update robots.txt to allow AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended).")
+    if not checks.get("sitemap", {}).get("exists"):
+        recs.append("Add a sitemap.xml and reference it in robots.txt.")
+    if not checks.get("llms_txt", {}).get("exists"):
+        recs.append("Add an /llms.txt file summarizing the site for AI (see llmstxt.org).")
+    hp = checks.get("homepage", {})
+    if isinstance(hp, dict) and "error" not in hp:
+        if not hp.get("title"):
+            recs.append("Add a descriptive <title> to the homepage.")
+        if not hp.get("meta_description"):
+            recs.append("Add a meta description to the homepage.")
+        if not hp.get("h1"):
+            recs.append("Add a clear H1 heading to the homepage.")
+        if (hp.get("schema_count") or 0) == 0:
+            recs.append("Add JSON-LD structured data (Organization/LocalBusiness/FAQPage).")
+        if (hp.get("images_missing_alt") or 0) > 0:
+            recs.append(f"Add alt text to {hp.get('images_missing_alt')} image(s) missing it.")
+        if (hp.get("word_count") or 0) < 300:
+            recs.append("Add more substantive homepage content (aim for 300+ words).")
+    ai = checks.get("ai_mentions", {})
+    if not ai:
+        recs.append("Set OPENAI_API_KEY / ANTHROPIC_API_KEY to test AI brand mentions.")
+    else:
+        for k, v in ai.items():
+            if isinstance(v, str) and v.startswith("error"):
+                recs.append(f"Fix {k} API access ({v}).")
+    return recs
+
+
 def audit(url):
-    url = (url or "").strip()
-    if "://" not in url:
-        url = "https://" + url
+    url = normalize_url(url)
     parsed = urlparse(url)
     if not parsed.scheme or not parsed.netloc:
         raise ValueError("URL must include a host, e.g. example.com or https://example.com")
@@ -267,39 +309,7 @@ def audit(url):
     report["score"] = min(score, 100)
 
     # recommendations
-    recs = []
-    c = report["checks"]
-    rtxt = c.get("robots_txt", {})
-    if not rtxt.get("exists"):
-        recs.append("Create a robots.txt file at the site root.")
-    if rtxt.get("blocks_ai"):
-        recs.append("Update robots.txt to allow AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended).")
-    if not c.get("sitemap", {}).get("exists"):
-        recs.append("Add a sitemap.xml and reference it in robots.txt.")
-    if not c.get("llms_txt", {}).get("exists"):
-        recs.append("Add an /llms.txt file summarizing the site for AI (see llmstxt.org).")
-    hp = c.get("homepage", {})
-    if isinstance(hp, dict) and "error" not in hp:
-        if not hp.get("title"):
-            recs.append("Add a descriptive <title> to the homepage.")
-        if not hp.get("meta_description"):
-            recs.append("Add a meta description to the homepage.")
-        if not hp.get("h1"):
-            recs.append("Add a clear H1 heading to the homepage.")
-        if (hp.get("schema_count") or 0) == 0:
-            recs.append("Add JSON-LD structured data (Organization/LocalBusiness/FAQPage).")
-        if (hp.get("images_missing_alt") or 0) > 0:
-            recs.append(f"Add alt text to {hp.get('images_missing_alt')} image(s) missing it.")
-        if (hp.get("word_count") or 0) < 300:
-            recs.append("Add more substantive homepage content (aim for 300+ words).")
-    ai = c.get("ai_mentions", {})
-    if not ai:
-        recs.append("Set OPENAI_API_KEY / ANTHROPIC_API_KEY to test AI brand mentions.")
-    else:
-        for k, v in ai.items():
-            if isinstance(v, str) and v.startswith("error"):
-                recs.append(f"Fix {k} API access ({v}).")
-    report["recommendations"] = recs
+    report["recommendations"] = build_recommendations(report["checks"])
     return report
 
 
@@ -712,6 +722,11 @@ class AuditHandler(BaseHTTPRequestHandler):
 
     def log_message(self, *args):
         pass
+
+
+# Convenient aliases for "report view" functions
+report_view = build_html_report
+render_report = build_html_report
 
 
 def serve(port=8765, open_browser=True):
