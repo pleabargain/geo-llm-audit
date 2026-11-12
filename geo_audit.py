@@ -87,6 +87,7 @@ Notes
 """
 import argparse
 import datetime
+import hashlib
 import html
 import json
 import os
@@ -95,7 +96,7 @@ import sys
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -161,6 +162,11 @@ def audit(url):
         imgs = soup.find_all("img")
         alt_missing = sum(1 for i in imgs if not i.get("alt"))
         missing_alt_srcs = [ (i.get("src") or "") for i in imgs if not i.get("alt") ]
+        all_img_srcs = []
+        for i in imgs:
+            s = i.get("src")
+            if s:
+                all_img_srcs.append(urljoin(url, s))
         # platform guess
         platform = "Unknown"
         gen = soup.find("meta", attrs={"name": "generator"})
@@ -196,6 +202,7 @@ def audit(url):
             "images_total": len(imgs),
             "images_missing_alt": alt_missing,
             "images_missing_alt_list": missing_alt_srcs,
+            "images_all_list": all_img_srcs,
             "platform_guess": platform,
             "word_count": len(soup.get_text(" ").split()),
         }
@@ -254,7 +261,43 @@ def audit(url):
     return report
 
 
-def build_html_report(report):
+def download_images(srcs, out_dir):
+    """Download images to out_dir, return mapping src->relative path."""
+    os.makedirs(out_dir, exist_ok=True)
+    mapping = {}
+    used = set()
+    for src in srcs:
+        if not src:
+            continue
+        try:
+            r = httpx.get(src, headers={"User-Agent": UA}, timeout=20, follow_redirects=True)
+            if r.status_code != 200:
+                continue
+            # filename
+            name = os.path.basename(urlparse(src).path) or "image"
+            if not os.path.splitext(name)[1]:
+                ct = r.headers.get("content-type", "")
+                ext = ".jpg" if "jpeg" in ct else (".png" if "png" in ct else (".svg" if "svg" in ct else (".gif" if "gif" in ct else ".bin")))
+                name += ext
+            # sanitize + uniqueness
+            name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
+            if name in used:
+                base, ext = os.path.splitext(name)
+                i = 2
+                while f"{base}_{i}{ext}" in used:
+                    i += 1
+                name = f"{base}_{i}{ext}"
+            used.add(name)
+            path = os.path.join(out_dir, name)
+            with open(path, "wb") as f:
+                f.write(r.content)
+            mapping[src] = os.path.join("images", name).replace("\\", "/")
+        except Exception:
+            continue
+    return mapping
+
+
+def build_html_report(report, save_images=False, out_html_path=None):
     """Build an HTML report string from an audit report dict."""
     url = report.get("url", "")
     host = urlparse(url).netloc or url
@@ -273,9 +316,22 @@ def build_html_report(report):
 
     hp = checks.get("homepage", {})
     missing = hp.get('images_missing_alt_list', []) if isinstance(hp, dict) else []
+    all_imgs = hp.get('images_all_list', []) if isinstance(hp, dict) else []
+    base_url = report.get("url", "")
+    missing_abs = [urljoin(base_url, s) for s in missing]
+
+    img_map = {}
+    if save_images:
+        base_dir = os.path.dirname(os.path.abspath(out_html_path)) if out_html_path else os.getcwd()
+        img_dir = os.path.join(base_dir, "images")
+        srcs = [urljoin(base_url, s) for s in (all_imgs if all_imgs else missing)]
+        img_map = download_images(srcs, img_dir)
+
+    missing_disp = [img_map.get(s, s) for s in missing_abs] if save_images else missing
+
     thumbs_html = ""
-    if missing:
-        imgs = "".join(f'<img src="{esc(s)}" style="width:120px;height:auto;margin:6px;border:1px solid #ccc;border-radius:6px" loading="lazy" />' for s in missing)
+    if missing_disp:
+        imgs = "".join(f'<img src="{esc(s)}" style="width:120px;height:auto;margin:6px;border:1px solid #ccc;border-radius:6px" loading="lazy" />' for s in missing_disp)
         thumbs_html = f"<h3>Missing-alt thumbnails</h3><div>{imgs}</div>"
     hp_rows = ""
     if "error" in hp:
@@ -415,8 +471,37 @@ UI_HTML = r"""<!DOCTYPE html>
   </header>
 
   <div class="card">
+    <h2>What this tool does</h2>
+    <p>Audits a public website for the signals AI search engines (ChatGPT, Gemini,
+    Claude, Perplexity) use to <strong>understand, trust, cite, and recommend</strong>
+    a business. Checks robots.txt, sitemap.xml, llms.txt, homepage metadata,
+    schema.org, image alt coverage, word count, platform guess, and (optionally)
+    how AI models describe your brand.</p>
+    <h2>Why it matters</h2>
+    <p>AI search is becoming the front door to the web. If your site is blocked,
+    invisible, or unclear to AI crawlers, you will not be cited or recommended —
+    even if you rank well on Google. This tool surfaces the gaps so you can fix
+    them.</p>
+    <h2>What to expect</h2>
+    <ul>
+      <li>A score from 0 to 100 (heuristic starter metric, not an official ranking).</li>
+      <li>A breakdown of each check: exists / missing / blocking.</li>
+      <li>Missing-alt image thumbnails and a platform guess.</li>
+      <li>JSON + HTML reports saved locally as <code>audit_&lt;host&gt;.json</code> / <code>.html</code>.</li>
+    </ul>
+    <h2>Requirements</h2>
+    <ul>
+      <li>Internet access (the tool fetches live URLs).</li>
+      <li>Python 3.10+ with <code>httpx</code> and <code>beautifulsoup4</code> installed.</li>
+      <li>Optional: <code>OPENAI_API_KEY</code> / <code>ANTHROPIC_API_KEY</code> for live AI brand-mention tests.</li>
+      <li>You can point your own LLM (Claude, ChatGPT, etc.) at this code and ask it to run the script for you — it's plain Python.</li>
+    </ul>
+  </div>
+
+  <div class="card">
     <form id="auditForm">
       <input type="text" id="urlInput" placeholder="https://example.com" required />
+      <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;"><input type="checkbox" id="dlImg" /> Save report &amp; images locally</label>
       <button type="submit" id="runBtn">Run audit</button>
     </form>
     <div id="status" class="muted" style="margin-top:10px;"></div>
@@ -443,7 +528,7 @@ form.addEventListener('submit', async (e) => {
   status.innerHTML = '<span class="spinner"></span> Auditing ' + esc(url) + '...';
   results.classList.add('hidden');
   try {
-    const r = await fetch('/api/audit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url}) });
+    const r = await fetch('/api/audit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url, download_images: document.getElementById('dlImg').checked}) });
     const data = await r.json();
     if(data.error){ status.textContent = 'Error: ' + data.error; return; }
     render(data);
@@ -542,8 +627,10 @@ class AuditHandler(BaseHTTPRequestHandler):
         try:
             data = json.loads(raw.decode("utf-8"))
             url = data.get("url", "").strip()
+            download = bool(data.get("download_images", False))
         except Exception:
             url = ""
+            download = False
         if not url:
             self._json({"error": "missing url"}, 400)
             return
@@ -559,7 +646,7 @@ class AuditHandler(BaseHTTPRequestHandler):
             json.dump(rep, f, indent=2, ensure_ascii=False)
         html_path = f"audit_{host}.html"
         with open(html_path, "w", encoding="utf-8") as f:
-            f.write(build_html_report(rep))
+            f.write(build_html_report(rep, save_images=download, out_html_path=html_path))
         rep["_saved_json"] = out
         rep["_saved_html"] = html_path
         self._json(rep, 200)
@@ -604,6 +691,7 @@ def main(argv=None):
     parser.add_argument("--output", "-o", help="Path to write the JSON report (CLI mode)")
     parser.add_argument("--html", help="Path to write the HTML report (CLI mode)")
     parser.add_argument("--no-html", action="store_true", help="Skip HTML report (CLI mode)")
+    parser.add_argument("--download-images", action="store_true", help="Download images to a local images/ folder next to the report")
     parser.add_argument("--quiet", "-q", action="store_true", help="Print only score and saved paths (CLI mode)")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     args = parser.parse_args(argv)
@@ -653,7 +741,7 @@ def main(argv=None):
             if html_parent and not os.path.exists(html_parent):
                 os.makedirs(html_parent, exist_ok=True)
             with open(html_path, "w", encoding="utf-8") as f:
-                f.write(build_html_report(rep))
+                f.write(build_html_report(rep, save_images=args.download_images, out_html_path=html_path))
 
         if args.quiet:
             print(f"score: {rep['score']}/100")
