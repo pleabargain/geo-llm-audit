@@ -1,0 +1,104 @@
+# AI Visibility Audit (GEO) Starter Tool
+
+A small Python script that audits a website for the signals AI search engines
+(ChatGPT, Gemini, Claude, Perplexity) use to **understand, trust, cite, and
+recommend** a business. It produces a 0–100 heuristic "GEO visibility" score
+plus a detailed JSON report.
+
+This is a **starter tool** — a baseline you can extend with your own checks,
+scoring weights, and reporting.
+
+## What it checks
+
+| Check | What it looks for |
+|---|---|
+| `robots.txt` | Exists? Does it block AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended)? |
+| `sitemap.xml` | Exists? |
+| `llms.txt` | Exists? (AI-facing site summary) |
+| Homepage | Title, meta description, H1s, schema.org (JSON-LD) types, image alt coverage, word count |
+| AI mentions (optional) | How ChatGPT / Claude describe your brand (requires API keys) |
+
+## Requirements
+
+- Python 3.10+
+- [`uv`](https://docs.astral.sh/uv/) (recommended) **or** `pip`
+- Internet connection (the tool fetches live URLs)
+
+## Installation
+
+```bash
+git clone https://github.com/<your-user>/site-visibility-to-ai.git
+cd site-visibility-to-ai
+
+# With uv (recommended)
+uv add httpx beautifulsoup4
+
+# Or with pip
+pip install httpx beautifulsoup4
+```
+
+## Usage
+
+```bash
+# With uv
+uv run 20261112T120000_ai_visibility_audit.py https://example.com
+
+# Or with python directly
+python 20261112T120000_ai_visibility_audit.py https://example.com
+```
+
+### Options
+
+```
+uv run 20261112T120000_ai_visibility_audit.py <url> [--output PATH] [--quiet]
+
+  <url>       Website to audit (must include scheme, e.g. https://example.com)
+  --output    Write the JSON report to a specific file (default: audit_<host>.json)
+  --quiet     Print only the score and saved file path
+  --version   Print version and exit
+  -h, --help  Show help
+```
+
+### Examples
+
+```bash
+# Basic audit
+uv run 20261112T120000_ai_visibility_audit.py https://example.com
+
+# Custom output path, quiet
+uv run 20261112T120000_ai_visibility_audit.py https://example.com \
+    --output reports/example.json --quiet
+
+# Enable AI brand-mention tests
+OPENAI_API_KEY=sk-... ANTHROPIC_API_KEY=sk-ant-... \
+    uv run 20261112T120000_ai_visibility_audit.py https://example.com
+```
+
+### Environment variables (optional)
+
+| Variable | Effect |
+|---|---|
+| `OPENAI_API_KEY` | Enables a live ChatGPT brand-mention test |
+| `ANTHROPIC_API_KEY` | Enables a live Claude brand-mention test |
+
+Without these keys the audit still runs all on-site checks; the `ai_mentions`
+section will simply be empty.
+
+## Output
+
+A JSON report is printed to stdout and saved to disk (default
+`audit_<host>.json`). It contains `robots_txt`, `sitemap`, `llms_txt`,
+`homepage`, `ai_mentions`, and `score`.
+
+## Notes
+
+- Only public, crawlable pages are checked. No authentication is performed.
+- The score is a heuristic starter metric, not an official ranking signal.
+- Be respectful: the tool sends a small number of requests with a clear
+  User-Agent. Do not point it at sites you do not own without permission.
+
+## License
+
+MIT
+path">
+C:\Users\denni\OneDrive\Documents\02-AI-Automation\site-visiblity-to-AI\README.md
