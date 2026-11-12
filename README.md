@@ -91,6 +91,6 @@ python -m unittest tests.test_geo_audit -v
 - Be respectful: small number of requests with a clear User-Agent. Don't audit
   sites you don't own without permission.
 
-## License
+## Source
 
-MIT
+https://github.com/pleabargain/geo-llm-audit
