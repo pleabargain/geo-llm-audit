@@ -157,6 +157,7 @@ def audit(url):
         # images alt
         imgs = soup.find_all("img")
         alt_missing = sum(1 for i in imgs if not i.get("alt"))
+        missing_alt_srcs = [ (i.get("src") or "") for i in imgs if not i.get("alt") ]
         report["checks"]["homepage"] = {
             "title": title,
             "meta_description": meta_desc,
@@ -165,6 +166,7 @@ def audit(url):
             "schema_count": len(schemas),
             "images_total": len(imgs),
             "images_missing_alt": alt_missing,
+            "images_missing_alt_list": missing_alt_srcs,
             "word_count": len(soup.get_text(" ").split()),
         }
     else:
@@ -253,6 +255,7 @@ def build_html_report(report):
         <tr><td>Schema count</td><td>{hp.get('schema_count', 0)}</td></tr>
         <tr><td>Images total</td><td>{hp.get('images_total', 0)}</td></tr>
         <tr><td>Images missing alt</td><td>{hp.get('images_missing_alt', 0)}</td></tr>
+        <tr><td>Missing alt image srcs</td><td>{'<br>'.join(esc(s) for s in hp.get('images_missing_alt_list', [])) or '&mdash;'}</td></tr>
         <tr><td>Word count</td><td>{hp.get('word_count', 0)}</td></tr>
         """
 
