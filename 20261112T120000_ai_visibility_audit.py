@@ -158,6 +158,28 @@ def audit(url):
         imgs = soup.find_all("img")
         alt_missing = sum(1 for i in imgs if not i.get("alt"))
         missing_alt_srcs = [ (i.get("src") or "") for i in imgs if not i.get("alt") ]
+        # platform guess
+        platform = "Unknown"
+        gen = soup.find("meta", attrs={"name": "generator"})
+        if gen and gen.get("content"):
+            platform = gen.get("content")
+        else:
+            low = r.text.lower()
+            if "wixstatic" in low or "wix.com" in low or "x-wix" in low:
+                platform = "Wix"
+            elif "wp-content" in low or "wordpress" in low:
+                platform = "WordPress"
+            elif "shopify" in low:
+                platform = "Shopify"
+            elif "squarespace" in low:
+                platform = "Squarespace"
+            elif "webflow" in low:
+                platform = "Webflow"
+            elif "drupal" in low:
+                platform = "Drupal"
+            elif "joomla" in low:
+                platform = "Joomla"
+
         report["checks"]["homepage"] = {
             "title": title,
             "meta_description": meta_desc,
@@ -167,6 +189,7 @@ def audit(url):
             "images_total": len(imgs),
             "images_missing_alt": alt_missing,
             "images_missing_alt_list": missing_alt_srcs,
+            "platform_guess": platform,
             "word_count": len(soup.get_text(" ").split()),
         }
     else:
@@ -241,8 +264,12 @@ def build_html_report(report):
         label = "Yes" if val else "No"
         return f'<span style="color:{color};font-weight:bold">{label}</span>'
 
-    # homepage details
     hp = checks.get("homepage", {})
+    missing = hp.get('images_missing_alt_list', []) if isinstance(hp, dict) else []
+    thumbs_html = ""
+    if missing:
+        imgs = "".join(f'<img src="{esc(s)}" style="width:120px;height:auto;margin:6px;border:1px solid #ccc;border-radius:6px" loading="lazy" />' for s in missing)
+        thumbs_html = f"<h3>Missing-alt thumbnails</h3><div>{imgs}</div>"
     hp_rows = ""
     if "error" in hp:
         hp_rows = f"<tr><td colspan='2'>Error: {esc(hp['error'])}</td></tr>"
@@ -256,6 +283,7 @@ def build_html_report(report):
         <tr><td>Images total</td><td>{hp.get('images_total', 0)}</td></tr>
         <tr><td>Images missing alt</td><td>{hp.get('images_missing_alt', 0)}</td></tr>
         <tr><td>Missing alt image srcs</td><td>{'<br>'.join(esc(s) for s in hp.get('images_missing_alt_list', [])) or '&mdash;'}</td></tr>
+        <tr><td>Platform guess</td><td>{esc(hp.get('platform_guess', 'Unknown'))}</td></tr>
         <tr><td>Word count</td><td>{hp.get('word_count', 0)}</td></tr>
         """
 
@@ -271,6 +299,7 @@ def build_html_report(report):
     robots = checks.get("robots_txt", {})
     sitemap = checks.get("sitemap", {})
     llms = checks.get("llms_txt", {})
+    hp = checks.get("homepage", {})
 
     score_color = "#2e7d32" if score >= 80 else ("#ef6c00" if score >= 50 else "#c62828")
 
@@ -323,6 +352,7 @@ def build_html_report(report):
   <table>
     {hp_rows}
   </table>
+  {thumbs_html}
 
   <h2>AI mentions</h2>
   {ai_html}
