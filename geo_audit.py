@@ -115,9 +115,12 @@ def fetch(url):
 
 
 def audit(url):
+    url = (url or "").strip()
+    if "://" not in url:
+        url = "https://" + url
     parsed = urlparse(url)
     if not parsed.scheme or not parsed.netloc:
-        raise ValueError("URL must include a scheme and host, e.g. https://example.com")
+        raise ValueError("URL must include a host, e.g. example.com or https://example.com")
     base = f"{parsed.scheme}://{parsed.netloc}"
     report = {"url": url, "checks": {}}
 
@@ -161,12 +164,16 @@ def audit(url):
         # images alt
         imgs = soup.find_all("img")
         alt_missing = sum(1 for i in imgs if not i.get("alt"))
-        missing_alt_srcs = [ (i.get("src") or "") for i in imgs if not i.get("alt") ]
+        missing_alt_srcs = list(dict.fromkeys((i.get("src") or "") for i in imgs if not i.get("alt")))
         all_img_srcs = []
+        seen = set()
         for i in imgs:
             s = i.get("src")
             if s:
-                all_img_srcs.append(urljoin(url, s))
+                a = urljoin(url, s)
+                if a not in seen:
+                    seen.add(a)
+                    all_img_srcs.append(a)
         # platform guess
         platform = "Unknown"
         gen = soup.find("meta", attrs={"name": "generator"})
