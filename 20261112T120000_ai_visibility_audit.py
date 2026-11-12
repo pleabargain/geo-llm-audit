@@ -161,8 +161,10 @@ def audit(url):
         # platform guess
         platform = "Unknown"
         gen = soup.find("meta", attrs={"name": "generator"})
-        if gen and gen.get("content"):
-            platform = gen.get("content")
+        gen_content = (gen.get("content") if gen else "") or ""
+        known = ["wordpress", "wix", "shopify", "squarespace", "webflow", "drupal", "joomla", "ghost", "hubspot"]
+        if any(k in gen_content.lower() for k in known):
+            platform = gen_content
         else:
             low = r.text.lower()
             if "wixstatic" in low or "wix.com" in low or "x-wix" in low:
@@ -179,6 +181,8 @@ def audit(url):
                 platform = "Drupal"
             elif "joomla" in low:
                 platform = "Joomla"
+            elif gen_content:
+                platform = gen_content  # fallback to whatever generator says
 
         report["checks"]["homepage"] = {
             "title": title,
