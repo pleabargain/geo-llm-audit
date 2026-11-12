@@ -646,6 +646,8 @@ function render(d){
   const recs = d.recommendations || [];
   let recHtml = recs.length ? '<ul>' + recs.map(r=>'<li>'+esc(r)+'</li>').join('') + '</ul>' : '<p class="muted">No recommendations — great job!</p>';
   html += `<div class="card"><h2>Recommendations to improve score</h2>${recHtml}</div>`;
+  results.innerHTML = html;
+  results.classList.remove('hidden');
 }
 </script>
 </body>

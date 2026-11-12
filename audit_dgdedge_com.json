@@ -1,0 +1,43 @@
+{
+  "url": "https://dgdedge.com",
+  "checks": {
+    "robots_txt": {
+      "exists": true,
+      "blocks_ai": false,
+      "content": "User-agent: *\nAllow: /\n\nSitemap: https://dgdedge.com/sitemap.xml\n"
+    },
+    "sitemap": {
+      "exists": true
+    },
+    "llms_txt": {
+      "exists": true,
+      "content": "# dgdedge — Executive Coaching & Advisory\n\n> One-to-one executive coaching and advisory work for leaders and leadership teams, led by Dennis Daniels. Based in Dubai, UAE.\n\n## Core Summary\n\ndgdedge provides high-impact executive coaching, advisory workshops, and practical AI adoption guidance for experienced executives who want sharper judgment, clear communication, and reduced cognitive load under pressure.\n\n## Dennis Daniels\n\n- **Background**: 25+ years across education, university lecturing (Sorbonne Nouvelle – Paris III), corporate training, IT sales, and business ownership (Partner in Onlink Services, 2007–2019).\n- **Focus**: Practical, people-first coaching focused on real accountability, decision-making costs, and communication under pressure.\n- **Academic Profile**: Former adjunct lecturer in Business, Communications, English, and Applied AI. Academic credentials include M.A. in Instructional Technologies (SFSU, 1997), B.A. in English Literature (SFSU, 1993), and California Seco"
+    },
+    "homepage": {
+      "title": "dgdedge — Executive coaching & advisory",
+      "meta_description": "One-to-one executive coaching and team advisory with Dennis Daniels — 25+ years as a teacher, trainer and business owner. Based in Dubai.",
+      "h1": [
+        "An edge for the leaderswho already have mostof it figured out."
+      ],
+      "schema_types": [
+        null
+      ],
+      "schema_count": 1,
+      "images_total": 1,
+      "images_missing_alt": 0,
+      "images_missing_alt_list": [],
+      "images_all_list": [
+        "https://dgdedge.com/assets/dennis-headshot.jpg"
+      ],
+      "platform_guess": "Unknown",
+      "word_count": 451
+    },
+    "ai_mentions": {
+      "openai": "error: 'choices'"
+    }
+  },
+  "score": 100,
+  "recommendations": [
+    "Fix openai API access (error: 'choices')."
+  ]
+}
